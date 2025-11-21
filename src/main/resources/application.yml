@@ -1,0 +1,81 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/HRMS?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: root
+    password: 081224Htc@
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+    show-sql: true
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: htcong10@gmail.com
+    password: afyg xkbe buyv qdfw
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+server:
+  port: 8080
+
+app:
+  mail:
+    from: ${MAIL_FROM:noreply@hrms.com}
+    frontend-url: ${FRONTEND_URL:http://localhost:3000}
+
+jwt:
+  expiration-ms: 86400000  # 24 hours
+
+rsa:
+  public-key: |
+    -----BEGIN PUBLIC KEY-----
+    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAz6bCo1habcOmwvrHejTV
+    P13V2ai2pAHGhburTSdvnDyOgkMc3IUUrqZ6XEI7gE4zHz6RD0XTMMH7OnhCIATQ
+    fQ5+f5y1Kja07MjIXQc+iREZBk76oTThXJ0owQqpsxjUC24gyYwHwPp+zp07vxxX
+    dPElZOSmy8l8s9ggi7hq+QffkqUPamXQWMpU5903D7YJ9yCx+8SIdAcZprVwkKUt
+    brtGuvXWcGdiKdzlZm0tUPUDRgopPo28Yv3Jk6oclOtjdX/0q25XB9yeqYsiEVkq
+    c1Y6x3xXkFG8l+UdVkpqQvzvCiZRLaWg6fhaLgwen7tXeV45MWXebquGjYBYUHLQ
+    2QIDAQAB
+    -----END PUBLIC KEY-----
+  private-key: |
+    -----BEGIN PRIVATE KEY-----
+    MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDPpsKjWFptw6bC
+    +sd6NNU/XdXZqLakAcaFu6tNJ2+cPI6CQxzchRSupnpcQjuATjMfPpEPRdMwwfs6
+    eEIgBNB9Dn5/nLUqNrTsyMhdBz6JERkGTvqhNOFcnSjBCqmzGNQLbiDJjAfA+n7O
+    nTu/HFd08SVk5KbLyXyz2CCLuGr5B9+SpQ9qZdBYylTn3TcPtgn3ILH7xIh0Bxmm
+    tXCQpS1uu0a69dZwZ2Ip3OVmbS1Q9QNGCik+jbxi/cmTqhyU62N1f/SrblcH3J6p
+    iyIRWSpzVjrHfFeQUbyX5R1WSmpC/O8KJlEtpaDp+FouDB6fu1d5XjkxZd5uq4aN
+    gFhQctDZAgMBAAECggEAQjDTiVMAHE4KCcv7qxJNSXIlWUjk0zm3qOhuDd18v84z
+    1QUEnayUL6nkhiUcp2UF+bctcTNeQwQKi5RK677tIHfuzcnLm+WtXW8RI0pMXk/D
+    bNXfIWTkU2vLUmGOP4cyDGSx8dz/mb2fj0fihCRKIn4937/dBUe4RvGlSjRicPfF
+    B27oHFsJ5v//LLPbhslnTar3mEKX0AOtkJUomWV4GPW3qM9qgPyKfrqCM9JWK0Ta
+    QR1jxgTt5FlFpCxbRblynlw53s4JvV5lsq4/ktSigKLLrAJ9oIQDpjCbeZrAeOWD
+    kiuZa93VIBZmxjbK38BVrJM7fJ+WDvKZlxjxHkupYwKBgQDofwghTYx07tbfWKo0
+    ppeG/V3XtmyfqwCp+e6zc//V940GOhuKlfx6AdzPMt3XI97uXCzZgAkJqD6XGSw1
+    yIg6rlVXqKwvUWHPTurIemTi64e09rGVY0S7XkeMILvXeBGNuGzjLvsTHKXMoyeT
+    yGgK8HnXxcRFtW8BfrkjmHp7jwKBgQDkpL+cBgeSQHDIVdFYaoqjEadjKWUeX1Aa
+    ONKcaRHGSfInsarGr6SmUownslS3yw0OWgoNuACu0SIzTNm0s5aBzWANRD814UhW
+    6sTjruix6EtEupdbGSXhD5q3T8QpLS/8lgWh4uguZxidrIxurISvXHou8kmbojI8
+    5TqzZTNZFwKBgQDA5uVv/E/VlXViysYt+SswLXh3SjzGHbPnVB/hdRWICmVQDVZc
+    niVldbYnlCTMJE8Lph7wN3NIN/f2lkRAO6oMRik5GhIDEJr+zpOu0x5xyMpIM4cU
+    U9DrRUZH1cEE/fJSi/qMZKadLN/D8nsb+uOYb/4oMUawL+FydBpYlmLJsQKBgBcv
+    tdamreHg8w791Or4cvKyeZ0Ot5hq5f6iwIjoBstq+EmaNM1NRo8vU9M6vGifCMXp
+    z5cwj7EquCMnqfQvOhYTs6fkwdw+6k0WJb1JIYPZILjpiyvL0xGNuYzZY/UhBfrB
+    Y/TUw+LgxZhHxT379MCryiA0pc5Ilnuia1+B5cElAoGBAN22nKrX/j4D4TMedqDQ
+    RDmqro9XUoH2Xhi1Qodn8cAmX7fDGe8ejQ8k1eUd2P6moEcUtG5Wqv1xkeGKE2bU
+    LLgjWoDFWgYGWkCc46HtuWLUe+mGKMw23NHHr/v2s1AJyT3QGk6AyNLLyBTFKcfg
+    5Rbe44UiYNTk4aZqeK823Lqc
+    -----END PRIVATE KEY-----
