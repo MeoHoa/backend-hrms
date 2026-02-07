@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import com.example.hrms.dto.request.*;
 import com.example.hrms.dto.response.*;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -38,7 +39,7 @@ public class TimekeepingService {
     private final UserRepository userRepository;
     private final EmployeeRepository employeeRepository;
     private final HolidayCalendarRepository holidayCalendarRepository;
-    
+
     // Default work hours (standard working hours)
     private static final BigDecimal DEFAULT_WORK_HOURS = BigDecimal.valueOf(8);
     private static final LocalTime DEFAULT_CHECK_IN = LocalTime.of(8, 0);
@@ -65,7 +66,7 @@ public class TimekeepingService {
         timekeeping.setExpectedCheckOutTime(DEFAULT_CHECK_OUT);
         timekeeping.setRequiredWorkHours(DEFAULT_WORK_HOURS);
     }
-    
+
     /**
      * Check if a date is a holiday and return the holiday name
      * Returns null if not a holiday
@@ -75,14 +76,14 @@ public class TimekeepingService {
                 .map(HolidayCalendar::getHolidayName)
                 .orElse(null);
     }
-    
+
     /**
      * Check if a date is a holiday
      */
     private boolean isHoliday(LocalDate date) {
         return holidayCalendarRepository.existsByHolidayDate(date);
     }
-    
+
     /**
      * Check if a date is a weekend (Saturday or Sunday)
      */
@@ -90,7 +91,7 @@ public class TimekeepingService {
         DayOfWeek dayOfWeek = date.getDayOfWeek();
         return dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY;
     }
-    
+
     /**
      * Check if a date is a holiday or weekend
      * Returns true if the date is either a holiday or weekend
@@ -104,17 +105,15 @@ public class TimekeepingService {
         Employee employee = getCurrentEmployee();
         LocalDate today = LocalDate.now();
         LocalDateTime now = LocalDateTime.now();
-        
+
         // Check if today is a holiday or weekend
         String holidayName = getHolidayName(today);
         boolean isHoliday = holidayName != null;
         boolean isWeekend = isWeekend(today);
         boolean isHolidayOrWeekend = isHolidayOrWeekend(today);
-        
-        // Determine status: Confirmed if holiday/weekend, Pending otherwise
-        Timekeeping.Status initialStatus = isHolidayOrWeekend 
-                ? Timekeeping.Status.Confirmed 
-                : Timekeeping.Status.Pending;
+
+        // Determine status: Always Pending, even for holidays/weekends
+        Timekeeping.Status initialStatus = Timekeeping.Status.Pending;
 
         // Check if there's already a check-in for today
         Optional<Timekeeping> existing = timekeepingRepository.findByEmployeeAndWorkDate(employee, today);
@@ -130,17 +129,13 @@ public class TimekeepingService {
             }
             // Set holiday name if today is a holiday
             existingRecord.setHolidayName(holidayName);
-            // Set status: Confirmed if holiday/weekend, otherwise keep existing status or set Pending
-            if (isHolidayOrWeekend) {
-                existingRecord.setStatus(Timekeeping.Status.Confirmed);
-            } else {
-                existingRecord.setStatus(Timekeeping.Status.Pending);
-            }
+            // Set status: Always Pending, wait for admin approval
+            existingRecord.setStatus(Timekeeping.Status.Pending);
             existingRecord.setUpdatedAt(LocalDateTime.now());
-            
+
             // Set expected times (default values)
             setExpectedTimes(existingRecord);
-            
+
             existingRecord = timekeepingRepository.save(existingRecord);
             return mapToResponse(existingRecord);
         }
@@ -151,13 +146,13 @@ public class TimekeepingService {
                 .checkIn(now)
                 .workDate(today)
                 .holidayName(holidayName) // Set holiday name if today is a holiday
-                .status(initialStatus) // Confirmed if holiday/weekend, Pending otherwise
+                .status(initialStatus) // Always Pending
                 .workHours(BigDecimal.ZERO)
                 .overtimeHours(BigDecimal.ZERO)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
-        
+
         // Set reason if provided (UI controls)
         // If it's a holiday/weekend and no reason provided, suggest a default reason
         if (request != null && request.getReason() != null && !request.getReason().trim().isEmpty()) {
@@ -167,7 +162,7 @@ public class TimekeepingService {
         } else if (isWeekend) {
             timekeeping.setReason("Làm thêm giờ vào cuối tuần");
         }
-        
+
         // Set expected times (default values)
         setExpectedTimes(timekeeping);
 
@@ -184,7 +179,8 @@ public class TimekeepingService {
         Timekeeping timekeeping = timekeepingRepository.findByEmployeeAndWorkDate(employee, today)
                 .orElseThrow(() -> new RuntimeException("No check-in found for today. Please check in first."));
 
-        // Check if today is a holiday or weekend (check from database, not just from record)
+        // Check if today is a holiday or weekend (check from database, not just from
+        // record)
         String holidayName = getHolidayName(today);
         boolean isHoliday = holidayName != null;
         boolean isWeekendDay = isWeekend(today);
@@ -196,7 +192,7 @@ public class TimekeepingService {
         }
 
         timekeeping.setCheckOut(now);
-        
+
         // Set reason if provided (UI controls)
         if (request != null && request.getReason() != null && !request.getReason().trim().isEmpty()) {
             // If there's already a reason (from check-in), append or replace
@@ -206,21 +202,21 @@ public class TimekeepingService {
                 timekeeping.setReason(request.getReason());
             }
         }
-        
+
         // Calculate work hours
         if (timekeeping.getCheckIn() != null) {
             long minutes = ChronoUnit.MINUTES.between(timekeeping.getCheckIn(), now);
             BigDecimal totalHours = BigDecimal.valueOf(minutes)
                     .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
-            
+
             if (isHolidayOrWeekend) {
                 // If holiday or weekend: ALL hours are overtime, workHours = 0
                 timekeeping.setWorkHours(BigDecimal.ZERO);
                 timekeeping.setOvertimeHours(totalHours);
-                
-                // Auto-confirm for holiday/weekend (always Confirmed, no need admin approval)
-                timekeeping.setStatus(Timekeeping.Status.Confirmed);
-                
+
+                // Set as Pending for holiday/weekend (require admin approval)
+                timekeeping.setStatus(Timekeeping.Status.Pending);
+
                 // Set default reason if not provided
                 if (timekeeping.getReason() == null || timekeeping.getReason().trim().isEmpty()) {
                     if (isHoliday) {
@@ -231,9 +227,10 @@ public class TimekeepingService {
                 }
             } else {
                 // Normal working day: calculate work hours and overtime normally
-                BigDecimal requiredHours = timekeeping.getRequiredWorkHours() != null 
-                        ? timekeeping.getRequiredWorkHours() : DEFAULT_WORK_HOURS;
-                
+                BigDecimal requiredHours = timekeeping.getRequiredWorkHours() != null
+                        ? timekeeping.getRequiredWorkHours()
+                        : DEFAULT_WORK_HOURS;
+
                 if (totalHours.compareTo(requiredHours) > 0) {
                     // More than required hours: required hours = workHours, excess = overtime
                     timekeeping.setWorkHours(requiredHours);
@@ -243,19 +240,19 @@ public class TimekeepingService {
                     timekeeping.setWorkHours(totalHours);
                     timekeeping.setOvertimeHours(BigDecimal.ZERO);
                 }
-                
+
                 // Keep status as Pending for normal days (admin needs to approve)
                 if (timekeeping.getStatus() == null) {
                     timekeeping.setStatus(Timekeeping.Status.Pending);
                 }
             }
         }
-        
+
         // Set expected times if not already set
         if (timekeeping.getExpectedCheckInTime() == null || timekeeping.getExpectedCheckOutTime() == null) {
             setExpectedTimes(timekeeping);
         }
-        
+
         timekeeping.setUpdatedAt(LocalDateTime.now());
         timekeeping = timekeepingRepository.save(timekeeping);
 
@@ -265,13 +262,13 @@ public class TimekeepingService {
     public TodayStatusResponse getTodayStatus() {
         Employee employee = getCurrentEmployee();
         LocalDate today = LocalDate.now();
-        
+
         // Check if today is a holiday
         String holidayName = getHolidayName(today);
         boolean isHoliday = holidayName != null;
-        
+
         Optional<Timekeeping> todayRecord = timekeepingRepository.findByEmployeeAndWorkDate(employee, today);
-        
+
         if (todayRecord.isEmpty()) {
             // No record today - can check in (even on holidays, for overtime work)
             return TodayStatusResponse.builder()
@@ -286,13 +283,13 @@ public class TimekeepingService {
                     .holidayName(holidayName)
                     .build();
         }
-        
+
         Timekeeping record = todayRecord.get();
         boolean hasCheckIn = record.getCheckIn() != null;
         boolean hasCheckOut = record.getCheckOut() != null;
         boolean isCompleted = hasCheckIn && hasCheckOut;
         boolean canCheckOut = hasCheckIn && !hasCheckOut;
-        
+
         String actionNeeded;
         if (!hasCheckIn) {
             actionNeeded = "CHECK_IN";
@@ -301,7 +298,7 @@ public class TimekeepingService {
         } else {
             actionNeeded = "NONE"; // Already completed
         }
-        
+
         return TodayStatusResponse.builder()
                 .hasRecord(true)
                 .canCheckIn(!hasCheckIn)
@@ -334,7 +331,7 @@ public class TimekeepingService {
                     .map(this::mapToResponse)
                     .collect(Collectors.toList());
         }
-        
+
         // If month/year is provided, calculate startDate and endDate from them
         if (month != null && year != null) {
             // Validate month (1-12) and year
@@ -344,7 +341,7 @@ public class TimekeepingService {
             if (year < 2000 || year > 2100) {
                 throw new RuntimeException("Year must be between 2000 and 2100");
             }
-            
+
             // Calculate first day and last day of the month
             startDate = LocalDate.of(year, month, 1);
             // Get last day of month
@@ -358,15 +355,16 @@ public class TimekeepingService {
                 endDate = LocalDate.now(); // Default to today
             }
         }
-        
-        List<Timekeeping> records = timekeepingRepository.findByEmployeeAndWorkDateBetween(employee, startDate, endDate);
+
+        List<Timekeeping> records = timekeepingRepository.findByEmployeeAndWorkDateBetween(employee, startDate,
+                endDate);
         if (limit != null && limit > 0) {
             return records.stream()
                     .limit(limit)
                     .map(this::mapToResponse)
                     .collect(Collectors.toList());
         }
-        
+
         return records.stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
@@ -410,7 +408,7 @@ public class TimekeepingService {
     @Transactional
     public List<TimekeepingResponse> batchApproveTimekeeping(BatchApproveRequest request) {
         List<TimekeepingResponse> results = new java.util.ArrayList<>();
-        
+
         for (Integer recordId : request.getRecordIds()) {
             try {
                 Timekeeping timekeeping = timekeepingRepository.findById(recordId)
@@ -431,20 +429,20 @@ public class TimekeepingService {
                 }
                 timekeeping.setUpdatedAt(LocalDateTime.now());
                 timekeeping = timekeepingRepository.save(timekeeping);
-                
+
                 results.add(mapToResponse(timekeeping));
             } catch (Exception e) {
                 log.error("Error approving timekeeping record {}: {}", recordId, e.getMessage());
             }
         }
-        
+
         return results;
     }
 
     @Transactional
     public List<TimekeepingResponse> batchRejectTimekeeping(BatchRejectRequest request) {
         List<TimekeepingResponse> results = new java.util.ArrayList<>();
-        
+
         for (Integer recordId : request.getRecordIds()) {
             try {
                 Timekeeping timekeeping = timekeepingRepository.findById(recordId)
@@ -461,13 +459,13 @@ public class TimekeepingService {
                 }
                 timekeeping.setUpdatedAt(LocalDateTime.now());
                 timekeeping = timekeepingRepository.save(timekeeping);
-                
+
                 results.add(mapToResponse(timekeeping));
             } catch (Exception e) {
                 log.error("Error rejecting timekeeping record {}: {}", recordId, e.getMessage());
             }
         }
-        
+
         return results;
     }
 
@@ -524,34 +522,35 @@ public class TimekeepingService {
         }
         if (request.getCorrectedTimeOut() != null) {
             timekeeping.setCheckOut(request.getCorrectedTimeOut());
-            
+
             // Recalculate work hours if check-out is updated
             if (timekeeping.getCheckIn() != null) {
                 long minutes = ChronoUnit.MINUTES.between(timekeeping.getCheckIn(), timekeeping.getCheckOut());
                 BigDecimal totalHours = BigDecimal.valueOf(minutes)
                         .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
-                
+
                 // Check if workDate is a holiday or weekend
                 LocalDate workDate = timekeeping.getWorkDate();
                 String holidayName = getHolidayName(workDate);
                 boolean isHoliday = holidayName != null;
                 boolean isWeekendDay = isWeekend(workDate);
                 boolean isHolidayOrWeekend = isHoliday || isWeekendDay;
-                
+
                 // Update holiday name if it's a holiday
                 if (isHoliday) {
                     timekeeping.setHolidayName(holidayName);
                 }
-                
+
                 if (isHolidayOrWeekend) {
                     // If holiday or weekend: ALL hours are overtime, workHours = 0
                     timekeeping.setWorkHours(BigDecimal.ZERO);
                     timekeeping.setOvertimeHours(totalHours);
                 } else {
                     // Normal working day: calculate work hours and overtime normally
-                    BigDecimal requiredHours = timekeeping.getRequiredWorkHours() != null 
-                            ? timekeeping.getRequiredWorkHours() : DEFAULT_WORK_HOURS;
-                    
+                    BigDecimal requiredHours = timekeeping.getRequiredWorkHours() != null
+                            ? timekeeping.getRequiredWorkHours()
+                            : DEFAULT_WORK_HOURS;
+
                     if (totalHours.compareTo(requiredHours) > 0) {
                         // More than required hours: required hours = workHours, excess = overtime
                         timekeeping.setWorkHours(requiredHours);
@@ -593,59 +592,60 @@ public class TimekeepingService {
                 .orElseThrow(() -> new RuntimeException("Timekeeping record not found with id: " + recordId));
 
         boolean recalculate = false;
-        
+
         // Update check-in if provided
         if (request.getCheckIn() != null) {
             timekeeping.setCheckIn(request.getCheckIn());
             recalculate = true;
         }
-        
+
         // Update check-out if provided
         if (request.getCheckOut() != null) {
             timekeeping.setCheckOut(request.getCheckOut());
             recalculate = true;
         }
-        
+
         // Update reason if provided (UI controls)
         if (request.getReason() != null) {
             timekeeping.setReason(request.getReason());
         }
-        
+
         // Update admin note
         if (request.getAdminNote() != null) {
             timekeeping.setAdminNote(request.getAdminNote());
         }
-        
+
         // Recalculate work hours if check-in or check-out was updated
         if (recalculate && timekeeping.getCheckIn() != null && timekeeping.getCheckOut() != null) {
             long minutes = ChronoUnit.MINUTES.between(timekeeping.getCheckIn(), timekeeping.getCheckOut());
             BigDecimal totalHours = BigDecimal.valueOf(minutes)
                     .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
-            
+
             // Check if workDate is a holiday or weekend
             LocalDate workDate = timekeeping.getWorkDate();
             String holidayName = getHolidayName(workDate);
             boolean isHoliday = holidayName != null;
             boolean isWeekendDay = isWeekend(workDate);
             boolean isHolidayOrWeekend = isHoliday || isWeekendDay;
-            
+
             // Update holiday name if it's a holiday
             if (isHoliday) {
                 timekeeping.setHolidayName(holidayName);
             }
-            
+
             if (isHolidayOrWeekend) {
                 // If holiday or weekend: ALL hours are overtime, workHours = 0
                 timekeeping.setWorkHours(BigDecimal.ZERO);
                 timekeeping.setOvertimeHours(totalHours);
-                
-                // Auto-confirm for holiday/weekend
-                timekeeping.setStatus(Timekeeping.Status.Confirmed);
+
+                // Set as Pending for holiday/weekend (require admin approval)
+                timekeeping.setStatus(Timekeeping.Status.Pending);
             } else {
                 // Normal working day: calculate work hours and overtime normally
-                BigDecimal requiredHours = timekeeping.getRequiredWorkHours() != null 
-                        ? timekeeping.getRequiredWorkHours() : DEFAULT_WORK_HOURS;
-                
+                BigDecimal requiredHours = timekeeping.getRequiredWorkHours() != null
+                        ? timekeeping.getRequiredWorkHours()
+                        : DEFAULT_WORK_HOURS;
+
                 if (totalHours.compareTo(requiredHours) > 0) {
                     // More than required hours: required hours = workHours, excess = overtime
                     timekeeping.setWorkHours(requiredHours);
@@ -655,18 +655,19 @@ public class TimekeepingService {
                     timekeeping.setWorkHours(totalHours);
                     timekeeping.setOvertimeHours(BigDecimal.ZERO);
                 }
-                
+
                 // Update status to Pending if it was corrected, so admin can review again
                 timekeeping.setStatus(Timekeeping.Status.Pending);
             }
         }
-        
+
         // Set expected times if not already set
         if (timekeeping.getExpectedCheckInTime() == null || timekeeping.getExpectedCheckOutTime() == null) {
             setExpectedTimes(timekeeping);
         }
-        
-        // Only update status to Pending if not holiday/weekend and not already recalculated
+
+        // Only update status to Pending if not holiday/weekend and not already
+        // recalculated
         if (!recalculate && timekeeping.getStatus() != Timekeeping.Status.Confirmed) {
             // Check if workDate is a holiday or weekend
             LocalDate workDate = timekeeping.getWorkDate();
@@ -675,7 +676,7 @@ public class TimekeepingService {
                 timekeeping.setStatus(Timekeeping.Status.Pending);
             }
         }
-        
+
         timekeeping.setUpdatedAt(LocalDateTime.now());
         timekeeping = timekeepingRepository.save(timekeeping);
 
@@ -689,26 +690,27 @@ public class TimekeepingService {
     @Transactional
     public TimekeepingResponse updateMyTimekeepingReason(Integer recordId, UpdateMyTimekeepingReasonRequest request) {
         Employee employee = getCurrentEmployee();
-        
+
         // Find the timekeeping record
         Timekeeping timekeeping = timekeepingRepository.findById(recordId)
                 .orElseThrow(() -> new RuntimeException("Timekeeping record not found with id: " + recordId));
-        
+
         // Verify that the record belongs to the current employee
         if (!timekeeping.getEmployee().getEmployeeId().equals(employee.getEmployeeId())) {
             throw new RuntimeException("You can only update your own timekeeping records");
         }
-        
+
         // Update reason
         timekeeping.setReason(request.getReason());
         timekeeping.setUpdatedAt(LocalDateTime.now());
-        
+
         // Status should remain Pending if it was Pending, so admin can review
-        // If it was already Confirmed, we might want to change it back to Pending for admin review
+        // If it was already Confirmed, we might want to change it back to Pending for
+        // admin review
         if (timekeeping.getStatus() == Timekeeping.Status.Confirmed) {
             timekeeping.setStatus(Timekeeping.Status.Pending);
         }
-        
+
         timekeeping = timekeepingRepository.save(timekeeping);
         return mapToResponse(timekeeping);
     }
@@ -716,7 +718,7 @@ public class TimekeepingService {
     public TimekeepingResponse toResponse(Timekeeping timekeeping) {
         return mapToResponse(timekeeping);
     }
-    
+
     private TimekeepingResponse mapToResponse(Timekeeping timekeeping) {
         TimekeepingResponse.TimekeepingResponseBuilder builder = TimekeepingResponse.builder()
                 .id(timekeeping.getId())

@@ -218,6 +218,7 @@ public class DataInitializer implements CommandLineRunner {
                 .email(uniqueEmail)
                 .password(passwordEncoder.encode("123456")) // Default password: 123456
                 .role(role)
+                .status(1)
                 .employee(employee)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())

@@ -1,11 +1,11 @@
 spring:
   datasource:
     url: jdbc:mysql://localhost:3306/HRMS?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-    username: root
-    password: Admin1234567890!@
+    username: sa
+    password: 123456@Abc
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     properties:
       hibernate:
         format_sql: true
